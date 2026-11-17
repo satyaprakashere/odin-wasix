@@ -173,6 +173,13 @@ cmd_build() {
         col_flag=("-collection:wasix=${col_path}")
     fi
 
+    for arg in "$@"; do
+        if [[ "$arg" == -out:* ]]; then
+            local out_target="${arg#-out:}"
+            mkdir -p "$(dirname "$out_target")" 2>/dev/null || true
+        fi
+    done
+
     local target_flag="-target:wasi_wasm32"
 
     odin build "$@" "$target_flag" "${col_flag[@]}"
