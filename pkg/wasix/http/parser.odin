@@ -22,6 +22,7 @@ parse_method :: proc(m: string) -> (Method, bool) {
 parse_request :: proc(raw_data: []u8, conn: ^net.TCP_Conn, allocator := context.allocator) -> (req: Request, ok: bool) {
 	req.conn = conn
 	req.headers = make([dynamic]Header, allocator)
+	req.params = make([dynamic]Param, allocator)
 
 	str := string(raw_data)
 	header_end := strings.index(str, "\r\n\r\n")
@@ -79,4 +80,5 @@ parse_request :: proc(raw_data: []u8, conn: ^net.TCP_Conn, allocator := context.
 
 destroy_request :: proc(req: ^Request) {
 	delete(req.headers)
+	delete(req.params)
 }

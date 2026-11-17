@@ -62,12 +62,18 @@ Header :: struct {
 	value: string,
 }
 
+Param :: struct {
+	key:   string,
+	value: string,
+}
+
 Request :: struct {
 	method:   Method,
 	path:     string,
 	raw_url:  string,
 	query:    string,
 	headers:  [dynamic]Header,
+	params:   [dynamic]Param,
 	body:     []u8,
 	conn:     ^net.TCP_Conn,
 }
@@ -86,6 +92,43 @@ request_get_header :: proc(req: ^Request, key: string) -> (value: string, found:
 		}
 	}
 	return "", false
+}
+
+request_param :: proc(req: ^Request, key: string) -> string {
+	for p in req.params {
+		if p.key == key {
+			return p.value
+		}
+	}
+	return ""
+}
+
+request_query :: proc(req: ^Request, key: string) -> string {
+	if len(req.query) == 0 do return ""
+	pairs := strings.split(req.query, "&", context.temp_allocator)
+	for pair in pairs {
+		eq_idx := strings.index(pair, "=")
+		if eq_idx != -1 {
+			k := pair[:eq_idx]
+			v := pair[eq_idx+1:]
+			if k == key do return v
+		} else if pair == key {
+			return "true"
+		}
+	}
+	return ""
+}
+
+response_set_cors :: proc(res: ^Response, origin: string = "*") {
+	response_set_header(res, "Access-Control-Allow-Origin", origin)
+	response_set_header(res, "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+	response_set_header(res, "Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+}
+
+response_set_security_headers :: proc(res: ^Response) {
+	response_set_header(res, "X-Content-Type-Options", "nosniff")
+	response_set_header(res, "X-Frame-Options", "SAMEORIGIN")
+	response_set_header(res, "Referrer-Policy", "no-referrer")
 }
 
 response_set_header :: proc(res: ^Response, key: string, value: string) {

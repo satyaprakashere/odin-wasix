@@ -110,28 +110,32 @@ main :: proc() {
 	assert_true(http.mime_type_from_path("style.css") == "text/css; charset=utf-8", "mime_type_from_path('style.css')")
 	assert_true(http.mime_type_from_path("binary.wasm") == "application/wasm", "mime_type_from_path('binary.wasm')")
 	assert_true(http.mime_type_from_path("data.json") == "application/json; charset=utf-8", "mime_type_from_path('data.json')")
+	assert_true(http.mime_type_from_path("manifest.webmanifest") == "application/manifest+json; charset=utf-8", "mime_type_from_path('manifest.webmanifest')")
+	assert_true(http.request_query(&req, "foo") == "bar", "request_query('foo') == 'bar'")
 
-	// Router dispatch
+	// Router dispatch & parameterized matching
 	router: http.Router
 	http.router_init(&router)
 	defer http.router_destroy(&router)
 
-	http.get(&router, "/test", proc(req: ^http.Request, res: ^http.Response) {
-		// Handled
+	param_captured := ""
+	http.get(&router, "/api/users/:id", proc(req: ^http.Request, res: ^http.Response) {
+		res.status = .OK
 	})
 
-	test_route_req := http.Request{
-		method = .GET,
-		path = "/test",
-	}
-	matched := false
-	for entry in router.routes {
-		if entry.path == test_route_req.path && entry.method == test_route_req.method {
-			matched = true
-			break
-		}
-	}
-	assert_true(matched, "router matches registered route")
+	dispatch_req: http.Request
+	dispatch_req.method = .GET
+	dispatch_req.path = "/api/users/42"
+	dispatch_req.params = make([dynamic]http.Param, context.temp_allocator)
+
+	dispatch_res: http.Response
+	dispatch_res.status = .Not_Found
+	dispatch_res.headers = make([dynamic]http.Header, context.temp_allocator)
+	dispatch_res.body = make([dynamic]u8, context.temp_allocator)
+
+	http.dispatch(&router, &dispatch_req, &dispatch_res)
+	assert_true(dispatch_res.status == .OK, "router parameterized route dispatch returns 200 OK")
+	assert_true(http.request_param(&dispatch_req, "id") == "42", "router captured param 'id' == '42'")
 
 	// -------------------------------------------------------------------------
 	// Summary
