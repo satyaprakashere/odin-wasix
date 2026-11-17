@@ -1,0 +1,21 @@
+[package]
+name = "odin-wasix-server"
+version = "0.1.0"
+description = "High-performance Odin Webserver running on Wasmer Edge (WASIX)"
+license = "MIT"
+
+[[module]]
+name = "server"
+source = "bin/server.wasm"
+abi = "wasi"
+
+[[command]]
+name = "server"
+module = "server"
+runner = "https://webc.org/runner/wasi"
+
+[command.annotations.wasi]
+env = ["PORT=8080"]
+
+[fs]
+"/public" = "examples/webserver/public"
