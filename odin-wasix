@@ -260,8 +260,22 @@ exec_wasm() {
 # Command: test
 # ------------------------------------------------------------------------------
 cmd_test() {
+    # --------------------------------------------------------------------------
+    # Phase 1: WASIX Unit & Subsystem Tests
+    # --------------------------------------------------------------------------
     echo "=================================================="
-    echo "🚀 Running Odin WASIX Integration Test Suite"
+    echo "🧪 Phase 1: WASIX Subsystem & Package Unit Tests"
+    echo "=================================================="
+
+    cmd_build tests/unit_test.odin -file -out:bin/unit_test.wasm -o:speed
+    wasmer run --net bin/unit_test.wasm
+    echo ""
+
+    # --------------------------------------------------------------------------
+    # Phase 2: Live Socket & HTTP Integration Tests
+    # --------------------------------------------------------------------------
+    echo "=================================================="
+    echo "🚀 Phase 2: Live Socket & HTTP Integration Tests"
     echo "=================================================="
 
     cmd_build examples/webserver -out:bin/server.wasm -o:speed

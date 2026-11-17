@@ -38,7 +38,7 @@ foreign wasix {
 	proc_parent :: proc(ro_ppid: ^pid_t) -> wasi.errno_t ---
 	proc_signal :: proc(pid: pid_t, sig: Signal) -> wasi.errno_t ---
 	chdir       :: proc(path: [^]u8, path_len: wasi.size_t) -> wasi.errno_t ---
-	getcwd      :: proc(buf: [^]u8, buf_len: wasi.size_t) -> wasi.errno_t ---
+	getcwd      :: proc(buf: [^]u8, ro_buf_len: ^wasi.size_t) -> wasi.errno_t ---
 	fd_pipe     :: proc(ro_fd1: ^wasi.fd_t, ro_fd2: ^wasi.fd_t) -> wasi.errno_t ---
 	fd_dup      :: proc(fd: wasi.fd_t, ro_fd: ^wasi.fd_t) -> wasi.errno_t ---
 	fd_dup2     :: proc(fd: wasi.fd_t, new_fd: wasi.fd_t) -> wasi.errno_t ---
