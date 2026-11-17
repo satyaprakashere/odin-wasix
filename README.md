@@ -75,12 +75,21 @@ foreign wasix {
 
 ## 🚀 Quickstart: As Easy as Rust WASIX (or Easier!)
 
-### Installation
-Install the `odin-wasix` CLI tool directly with Go:
+### Installation (Zero Go Dependency)
+Install the `odin-wasix` CLI tool with a single command:
 ```bash
-go install github.com/satyaprakashere/odin-wasix/cmd/odin-wasix@latest
+curl -fsSL https://raw.githubusercontent.com/satyaprakashere/odin-wasix/main/install.sh | bash
 ```
-*(Or build locally from this repo: `go build -o odin-wasix cmd/odin-wasix/*.go`)*
+Or clone and compile the native CLI with Odin itself:
+```bash
+git clone https://github.com/satyaprakashere/odin-wasix.git
+cd odin-wasix
+odin build cmd/odin-wasix -out:odin-wasix
+# Or simply run the included zero-compilation script:
+./odin-wasix help
+```
+
+*(Note: A Go CLI implementation is also retained locally under `cmd/odin-wasix/main.go` for monorepo and Go toolchain workflows).*
 
 ### 1. Scaffold a New Project
 Create a complete, ready-to-deploy Odin WASIX web application in one second:
