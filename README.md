@@ -20,16 +20,20 @@ WASIX bridges this gap with backward-compatible extensions to WASI:
 - **Process & Thread Hierarchy**: Hardware thread parallelism queries, process IDs, signals, child processes.
 - **High-Performance Microservices**: Build standalone network services, web servers, and distributed edge nodes in Odin without heavy container runtimes.
 
-### Comparing WASIX Toolchains Across Languages
+### WASIX Toolchain Landscape
 
-| Dimension | C / C++ (`wasixcc`) | Rust (`cargo-wasix`) | Odin (`odin-wasix`) |
-| :--- | :--- | :--- | :--- |
-| **Driver Command** | `wasixcc main.c -o app.wasm` | `cargo wasix build` | `odin-wasix build main.odin -file` |
-| **Compilation Speed** | Moderate (Clang / LLVM) | Slow (Macro expansion + rustc) | **Instant** (< 2 seconds) |
-| **Wasm Binary Size** | ~1 MB – 5 MB | ~3.5 MB – 12 MB (async/tokio) | **~280 KB** (Tiny footprint) |
-| **Memory Model** | Manual `malloc` / `free` | Ownership + heavy async heaps | **Context Allocators & Arenas** |
-| **Runtime Ergonomics** | C standard library | Deep async futures & tokio runtime | **Clean procedural code** |
-| **Runtime Portability** | Any WASIX runtime | Any WASIX runtime | **Any WASIX runtime** (Wasmer, Wasmtime, etc.) |
+WASIX enables modern systems languages to build full POSIX applications and microservices for WebAssembly:
+- **C / C++**: Supported via [`wasixcc`](https://github.com/wasix-org/wasixcc) and `wasix-libc`
+- **Rust**: Supported via [`cargo-wasix`](https://github.com/wasix-org/cargo-wasix)
+- **Odin**: Supported via [`odin-wasix`](https://github.com/satyaprakashere/odin-wasix)
+
+### Highlights of Odin on WASIX
+
+- **Ultra-Compact Binaries**: Fully functional web services compile to standalone binaries of ~280 KB.
+- **Sub-Millisecond Cold Starts**: Instant linear memory initialization with minimal runtime overhead.
+- **Custom Memory Control**: Idiomatic Odin custom allocators (Arenas, Temp Allocators) provide zero-fragmentation request cycles.
+- **Rapid Iteration**: Clean, instant builds (< 2s) directly through Odin's native LLVM Wasm target.
+- **Clean Procedural Design**: Simple, readable procedural systems code with zero external runtime dependencies.
 
 ---
 
