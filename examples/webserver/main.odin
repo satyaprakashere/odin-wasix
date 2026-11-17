@@ -14,7 +14,7 @@ main :: proc() {
 	start_time = time.now()
 
 	port: u16 = 8080
-	if port_env, found := os.lookup_env("PORT", context.temp_allocator); found {
+	if port_env := os.get_env("PORT", context.temp_allocator); len(port_env) > 0 {
 		if p, ok := strconv.parse_int(port_env); ok && p > 0 && p <= 65535 {
 			port = u16(p)
 		}
