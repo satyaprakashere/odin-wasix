@@ -75,7 +75,7 @@ server_listen_and_serve :: proc(s: ^Server, host: string, port: u16) -> bool {
 		response_set_header(&res, "Content-Length", fmt.tprintf("%d", len(res.body)))
 
 		// Format and send HTTP response
-		send_response(&conn, &res)
+		send_response(&conn, &res, req.method == .HEAD)
 
 		// Clean up connection
 		net.close(&conn)
@@ -84,7 +84,7 @@ server_listen_and_serve :: proc(s: ^Server, host: string, port: u16) -> bool {
 	return true
 }
 
-send_response :: proc(conn: ^net.TCP_Conn, res: ^Response) {
+send_response :: proc(conn: ^net.TCP_Conn, res: ^Response, is_head: bool = false) {
 	status_line := fmt.tprintf("HTTP/1.1 %s\r\n", status_to_string(res.status))
 	net.write_string(conn, status_line)
 
@@ -95,7 +95,7 @@ send_response :: proc(conn: ^net.TCP_Conn, res: ^Response) {
 
 	net.write_string(conn, "\r\n")
 
-	if len(res.body) > 0 {
+	if !is_head && len(res.body) > 0 {
 		net.write(conn, res.body[:])
 	}
 }

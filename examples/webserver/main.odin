@@ -14,7 +14,7 @@ main :: proc() {
 	start_time = time.now()
 
 	port: u16 = 8080
-	if port_env, found := os.lookup_env("PORT"); found {
+	if port_env, found := os.lookup_env("PORT", context.temp_allocator); found {
 		if p, ok := strconv.parse_int(port_env); ok && p > 0 && p <= 65535 {
 			port = u16(p)
 		}
@@ -32,7 +32,7 @@ main :: proc() {
 	// Root landing route
 	http.get(&server.router, "/", proc(req: ^http.Request, res: ^http.Response) {
 		// Try reading public/index.html first
-		if html_data, ok := os.read_entire_file("public/index.html", context.temp_allocator); ok {
+		if html_data, err := os.read_entire_file("public/index.html", context.temp_allocator); err == nil {
 			http.response_html(res, string(html_data))
 			return
 		}
@@ -72,7 +72,7 @@ main :: proc() {
 	// Health check endpoint
 	http.get(&server.router, "/api/v1/health", proc(req: ^http.Request, res: ^http.Response) {
 		elapsed := time.since(start_time)
-		json_payload := fmt.tprintf(`{"status":"healthy","uptime_seconds":%.3f}`, time.duration_seconds(elapsed))
+		json_payload := fmt.tprintf(`{{"status":"healthy","uptime_seconds":%.3f}}`, time.duration_seconds(elapsed))
 		http.response_json(res, json_payload)
 	})
 
@@ -84,7 +84,7 @@ main :: proc() {
 		parallelism: uint
 		sys.thread_parallelism(&parallelism)
 
-		json_payload := fmt.tprintf(`{"runtime":"wasix_32v1","language":"odin","pid":%d,"hardware_threads":%d,"memory_model":"wasm32"}`, pid, parallelism)
+		json_payload := fmt.tprintf(`{{"runtime":"wasix_32v1","language":"odin","pid":%d,"hardware_threads":%d,"memory_model":"wasm32"}}`, pid, parallelism)
 		http.response_json(res, json_payload)
 	})
 
@@ -94,7 +94,7 @@ main :: proc() {
 		if len(body_str) == 0 {
 			body_str = "{}"
 		}
-		json_payload := fmt.tprintf(`{"echo":%s}`, body_str)
+		json_payload := fmt.tprintf(`{{"echo":%s}}`, body_str)
 		http.response_json(res, json_payload)
 	})
 

@@ -96,7 +96,7 @@ dispatch :: proc(r: ^Router, req: ^Request, res: ^Response) {
 	}
 
 	// 2. Check static file mounts
-	if req.method == .GET {
+	if req.method == .GET || req.method == .HEAD {
 		for mount in r.static_mounts {
 			if strings.has_prefix(req.path, mount.prefix) {
 				rel_path := req.path[len(mount.prefix):]
@@ -108,8 +108,8 @@ dispatch :: proc(r: ^Router, req: ^Request, res: ^Response) {
 				}
 
 				full_file_path := fmt.tprintf("%s/%s", mount.dir, rel_path)
-				data, read_ok := os.read_entire_file(full_file_path, context.temp_allocator)
-				if read_ok {
+				data, err := os.read_entire_file(full_file_path, context.temp_allocator)
+				if err == nil {
 					res.status = .OK
 					response_set_header(res, "Content-Type", mime_type_from_path(full_file_path))
 					clear(&res.body)
