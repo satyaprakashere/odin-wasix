@@ -1,63 +1,75 @@
-# ⚡ odin-wasix: First-Class WASIX Support for Odin
+# ⚡ odin-wasix: General WASIX Compiler Driver for Odin
 
 [![Target](https://img.shields.io/badge/target-wasix_32v1-blue.svg)](https://wasix.org/)
-[![Runtime](https://img.shields.io/badge/runtime-Wasmer_7.x-orange.svg)](https://wasmer.io/)
-[![Deployment](https://img.shields.io/badge/deploy-wasmer.app-success.svg)](https://wasmer.app/)
+[![Runtime](https://img.shields.io/badge/runtime-Wasmer_/_WASIX-orange.svg)](https://wasmer.io/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Zero-Dependency](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)]()
 
-**`odin-wasix`** provides first-class, zero-dependency **WASIX** ([wasix.org](https://wasix.org/)) support for the **Odin programming language**. 
+**`odin-wasix`** is the general **WASIX** ([wasix.org](https://wasix.org/)) build toolchain and compiler driver for the **Odin programming language**.
 
-It enables developers to build high-performance, lightweight network services, web servers, and distributed edge applications in Odin and deploy them seamlessly to **Wasmer Edge** (`wasmer.app`), completely replacing traditional heavy Rust (Axum/Tokio) web servers.
+Just as [**`wasixcc`**](https://github.com/wasix-org/wasixcc) provides a seamless C/C++ compiler driver for WASIX, and `cargo-wasix` does for Rust, **`odin-wasix`** wraps the Odin compiler to provide first-class, out-of-the-box compilation and execution of general Odin code targeting the 32-bit WASIX specification (`wasix_32v1`).
 
 ---
 
-## 🎯 Motivation: Replacing Rust Web Servers on Wasmer Edge
+## 🌟 Why WASIX for Odin?
 
-Many developers deploy WebAssembly applications to Wasmer Edge using Rust frameworks such as Axum, Hyper, or Tokio. While functional, the Rust async ecosystem incurs significant overhead in Wasm environments:
+Standard WebAssembly System Interface (WASI Preview 1) provides basic sandboxed file and stdout/stderr access, but fundamentally lacks **POSIX sockets, network I/O, process control, and multithreading**. 
 
-| Metric / Dimension | Rust (Axum / Tokio / Hyper) | Odin WASIX (`odin-wasix`) | Improvement |
+WASIX bridges this gap with backward-compatible extensions to WASI:
+- **Berkeley / POSIX Sockets**: TCP listeners, socket connections, address resolution, peer info, non-blocking I/O.
+- **Process & Thread Hierarchy**: Hardware thread parallelism queries, process IDs, signals, child processes.
+- **High-Performance Microservices**: Build standalone network services, web servers, and distributed edge nodes in Odin without heavy container runtimes.
+
+### Comparing WASIX Toolchains Across Languages
+
+| Dimension | C / C++ (`wasixcc`) | Rust (`cargo-wasix`) | Odin (`odin-wasix`) |
 | :--- | :--- | :--- | :--- |
-| **Wasm Binary Size** | ~3.5 MB – 12 MB | **~280 KB** | **~15x - 40x smaller** |
-| **Cold Start Latency** | 5ms – 25ms (async scheduler setup) | **< 1ms** (linear memory initialization) | **Instant edge startup** |
-| **Memory Allocation** | Async task allocations & deep futures | **Custom Arena / Temp Allocator** per request | **Zero GC, zero heap fragmentation** |
-| **Build Velocity** | Slow rustc macro expansions | **Instant compilation** (< 2s) | **10x faster iteration** |
-| **Runtime Model** | Complex `Future` polling state machines | **Simple, linear, idiomatic procedural code** | **Maximal clarity & maintainability** |
+| **Driver Command** | `wasixcc main.c -o app.wasm` | `cargo wasix build` | `odin-wasix build main.odin -file` |
+| **Compilation Speed** | Moderate (Clang / LLVM) | Slow (Macro expansion + rustc) | **Instant** (< 2 seconds) |
+| **Wasm Binary Size** | ~1 MB – 5 MB | ~3.5 MB – 12 MB (async/tokio) | **~280 KB** (Tiny footprint) |
+| **Memory Model** | Manual `malloc` / `free` | Ownership + heavy async heaps | **Context Allocators & Arenas** |
+| **Runtime Ergonomics** | C standard library | Deep async futures & tokio runtime | **Clean procedural code** |
+| **Runtime Portability** | Any WASIX runtime | Any WASIX runtime | **Any WASIX runtime** (Wasmer, Wasmtime, etc.) |
 
 ---
 
-## 🏗️ Architecture & Package Layout
+## 📦 What's Included
+
+`odin-wasix` provides both the **compiler driver CLI** and the **core WASIX packages collection** for Odin:
 
 ```
 odin-wasix/
-├── pkg/wasix/
+├── odin-wasix            # Standalone zero-dependency executable driver (Bash)
+├── cmd/odin-wasix/       # Native Odin implementation of the CLI (odin build cmd/odin-wasix)
+│   └── main.odin
+├── pkg/wasix/            # First-class WASIX package collection (-collection:wasix=...)
 │   ├── sys/              # Low-level WASIX (wasix_32v1) syscalls & ABI types
 │   │   ├── types.odin    # Address_Family, Sock_Type, Sock_Proto, Addr_Port, Signals
-│   │   └── api.odin      # Foreign declarations (sock_open, sock_bind, sock_accept_v2, etc.)
-│   ├── net/              # High-level idiomatic networking layer
+│   │   └── api.odin      # Foreign imports (sock_open, sock_bind, sock_accept_v2, etc.)
+│   ├── net/              # Idiomatic high-level networking layer
 │   │   ├── endpoint.odin # IP4/IP6 Address types, Endpoint parsing, string formatting
 │   │   └── tcp.odin      # TCP_Listener, TCP_Conn, listen_tcp, accept_tcp, dial_tcp, read/write
-│   └── http/             # Zero-allocation HTTP 1.1 engine
+│   └── http/             # Lightweight HTTP 1.1 engine
 │       ├── types.odin    # Request, Response, Status, Method, Header, JSON/HTML responders
 │       ├── parser.odin   # Fast HTTP/1.1 request line and header parser
 │       ├── router.odin   # Route registry (GET, POST, PUT, DELETE), static mounts, MIME types
 │       └── server.odin   # Server event loop, connection handling, response dispatch
-├── examples/webserver/   # Production-ready web application
-│   ├── main.odin         # App entrypoint, REST API handlers, diagnostics
-│   └── public/           # Static asset directory (index.html, style.css)
-├── cmd/odin-wasix/       # Sovereign developer CLI runner (Go)
-│   └── main.go           # build, run, dev, test, deploy subcommands
-├── wasmer.toml           # Wasmer Edge package manifest
-├── app.yaml              # Wasmer Edge deployment specification
-└── README.md             # Complete project documentation
+├── examples/
+│   └── webserver/        # Complete example web server with REST endpoints and static files
+│       ├── main.odin
+│       ├── public/
+│       └── wasmer.toml
+├── install.sh            # One-liner system installer
+└── README.md
 ```
 
 ---
 
-## ⚡ Technical Validation
+## ⚡ How It Works Under the Hood
 
-WASIX extends standard WASI Preview 1 (`wasi_snapshot_preview1`) with POSIX-grade sockets and multithreading under the `wasix_32v1` namespace.
+Odin natively supports emitting WebAssembly object files targeting `-target:wasi_wasm32` using LLVM's `wasm-ld`. 
 
-Because Odin's WebAssembly backend outputs standard Wasm object files and invokes LLVM's `wasm-ld` with `--allow-undefined`, Odin programs directly import and link WASIX system calls at load time:
+`odin-wasix` automatically passes `--allow-undefined` and configures the target environment so that WASIX foreign procedures targeting the `"wasix_32v1"` ABI link directly without requiring any forks of the Odin compiler:
 
 ```odin
 foreign import wasix "wasix_32v1"
@@ -68,130 +80,188 @@ foreign wasix {
     sock_bind      :: proc(fd: wasi.fd_t, addr: rawptr) -> wasi.errno_t ---
     sock_listen    :: proc(fd: wasi.fd_t, backlog: wasi.size_t) -> wasi.errno_t ---
     sock_accept_v2 :: proc(fd: wasi.fd_t, flags: wasi.fdflags_t, ro_fd: ^wasi.fd_t, ro_addr: rawptr) -> wasi.errno_t ---
+    proc_id        :: proc(ro_pid: ^pid_t) -> wasi.errno_t ---
+    thread_parallelism :: proc(ro_parallelism: ^uint) -> wasi.errno_t ---
 }
 ```
 
 ---
 
-## 🚀 Quickstart: As Easy as Rust WASIX (or Easier!)
+## 🚀 Quickstart
 
-### Installation (Zero Go Dependency)
-Install the `odin-wasix` CLI tool with a single command:
+### Prerequisites
+- [**Odin Compiler**](https://odin-lang.org/docs/install/) (`odin` in your `PATH`)
+- A WASIX-compliant runtime such as [**Wasmer**](https://wasmer.io/) (`curl https://get.wasmer.io -sSfL | sh`)
+
+### Installation
+
+Install `odin-wasix` with a single command:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/satyaprakashere/odin-wasix/main/install.sh | bash
 ```
-Or clone and compile the native CLI with Odin itself:
+
+Or clone the repository and run directly:
 ```bash
 git clone https://github.com/satyaprakashere/odin-wasix.git
 cd odin-wasix
-odin build cmd/odin-wasix -out:odin-wasix
-# Or simply run the included zero-compilation script:
+chmod +x odin-wasix
 ./odin-wasix help
 ```
 
-*(Note: A Go CLI implementation is also retained locally under `cmd/odin-wasix/main.go` for monorepo and Go toolchain workflows).*
-
-### 1. Scaffold a New Project
-Create a complete, ready-to-deploy Odin WASIX web application in one second:
+To build the native binary CLI using Odin itself:
 ```bash
-odin-wasix new my-app
-cd my-app
-```
-
-This generates:
-- `main.odin` (HTTP 1.1 server, REST endpoints, WASIX diagnostics)
-- `public/` (frontend HTML/CSS responsive dashboard)
-- `wasmer.toml` & `app.yaml` (Wasmer Edge deployment descriptors)
-
-### 2. Run Locally in Wasmer
-Compile and launch your server locally:
-```bash
-odin-wasix run
-```
-Open [http://localhost:8080](http://localhost:8080) in your browser!
-
-### 3. Deploy Directly to Wasmer Edge (`wasmer.app`)
-Deploy your application globally to Wasmer Edge with a single command:
-```bash
-odin-wasix deploy
+odin build cmd/odin-wasix -out:bin/odin-wasix
+./bin/odin-wasix help
 ```
 
 ---
 
-## 🧪 Run Automated Integration Tests
+## 🛠️ CLI Usage & Workflow
 
-Execute the full end-to-end test suite verifying health checks, WASIX kernel diagnostics, JSON echoing, and static asset streaming:
+The `odin-wasix` CLI acts as an intelligent wrapper around `odin`, forwarding compiler flags and automatically configuring WASIX collections and linker settings.
+
+### 1. Scaffold a New Project
+```bash
+odin-wasix new my-service
+cd my-service
+```
+This generates a starter project with `main.odin` showcasing WASIX system calls and networking.
+
+### 2. Type-Check for WASIX Target
+Verify that your Odin code type-checks against the WASIX 32-bit architecture:
+```bash
+odin-wasix check .
+# Or for a single file:
+odin-wasix check main.odin -file
+```
+
+### 3. Build a WASIX Binary
+Compile your Odin code to a `.wasm` binary:
+```bash
+# Debug build
+odin-wasix build main.odin -file -out:app.wasm
+
+# Optimized release build (size or speed)
+odin-wasix build main.odin -file -out:app.wasm -o:speed
+```
+
+All standard Odin flags (`-o:speed`, `-debug`, `-show-timings`, `-collection:...`) are passed directly through to the Odin compiler.
+
+### 4. Run with WASIX Runtime
+Build and execute immediately in Wasmer (or your configured `WASIX_RUNNER`):
+```bash
+odin-wasix run main.odin -file
+```
+
+Pass runtime arguments to your application by separating with `--`:
+```bash
+odin-wasix run main.odin -file -- --port 9000 --verbose
+```
+
+### 5. Automated Test Suite
+Run the end-to-end integration test suite validating real TCP sockets, HTTP endpoints, JSON parsing, and static file serving:
 ```bash
 odin-wasix test
 ```
 
-Sample output:
-```
-==================================================
-🚀 Running Odin WASIX Web Server Integration Tests
-==================================================
-[BUILD SUCCESS] bin/server.wasm (281 KB) compiled in 1.96s
-✓ Server is ready and accepting connections!
-
-✓ PASS [GET /api/v1/health] Status: 200 OK | Body: {"status":"healthy","uptime_seconds":0.095}
-✓ PASS [GET /api/v1/system] Status: 200 OK | Body: {"runtime":"wasix_32v1","language":"odin","pid":1,"hardware_threads":10,"memory_model":"wasm32"}
-✓ PASS [POST /api/v1/echo] Status: 200 OK | Body: {"echo":{"active":true,"code":2026,"message":"Testing Odin WASIX Server"}}
-✓ PASS [GET /] Status: 200 OK | Rendered HTML length: 2540 bytes
-✓ PASS [GET /public/style.css] Status: 200 OK | Content-Type: text/css; charset=utf-8
-
-Test Results: 5/5 PASSED (100% Success Rate)
-==================================================
-```
-
 ---
 
-## 📖 Code Example: Clean WASIX Package Imports
+## 💡 Code Examples
 
-Thanks to automatic collection resolution, you import WASIX packages cleanly:
+### 1. WASIX Process & System Diagnostics
+Query process IDs and available hardware thread concurrency in WASIX:
 
 ```odin
 package main
 
 import "core:fmt"
-import "core:os"
-import "core:strconv"
-
-import "wasix:http"
 import "wasix:sys"
 
 main :: proc() {
-    port: u16 = 8080
-    if port_env := os.get_env("PORT", context.temp_allocator); len(port_env) > 0 {
-        if p, ok := strconv.parse_int(port_env); ok {
-            port = u16(p)
-        }
-    }
+    pid: sys.pid_t
+    sys.proc_id(&pid)
 
+    threads: uint
+    sys.thread_parallelism(&threads)
+
+    fmt.printfln("Running in WASIX! Process ID: %d | Hardware Concurrency: %d threads", pid, threads)
+}
+```
+
+### 2. Low-Level Idiomatic TCP Networking
+Create a TCP listener, accept incoming connections, read from sockets, and write responses:
+
+```odin
+package main
+
+import "core:fmt"
+import "wasix:net"
+
+main :: proc() {
+    listener, err := net.listen_tcp_str("0.0.0.0", 8080)
+    if err != .SUCCESS {
+        fmt.printfln("Failed to listen on socket: %v", err)
+        return
+    }
+    defer net.close_listener(&listener)
+
+    fmt.println("TCP listener active on 0.0.0.0:8080. Waiting for connections...")
+
+    for {
+        conn, accept_err := net.accept_tcp(&listener)
+        if accept_err != .SUCCESS do continue
+
+        msg := "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, WASIX!\n"
+        net.write_string(&conn, msg)
+        net.close_conn(&conn)
+    }
+}
+```
+
+### 3. Lightweight HTTP 1.1 Microservice
+Use the included `wasix:http` module for routing, REST APIs, JSON responses, and static asset streaming:
+
+```odin
+package main
+
+import "core:fmt"
+import "wasix:http"
+
+main :: proc() {
     server: http.Server
     http.server_init(&server)
     defer http.server_destroy(&server)
 
-    // Mount static files
+    // Serve static files from directory
     http.serve_static(&server.router, "/public", "public")
 
-    // Define JSON endpoint
-    http.get(&server.router, "/api/v1/hello", proc(req: ^http.Request, res: ^http.Response) {
-        http.response_json(res, `{"message":"Hello from Odin WASIX!"}`)
+    // Health endpoint
+    http.get(&server.router, "/health", proc(req: ^http.Request, res: ^http.Response) {
+        http.response_json(res, `{"status":"ok"}`)
     })
 
-    // Define dynamic POST endpoint
-    http.post(&server.router, "/api/v1/echo", proc(req: ^http.Request, res: ^http.Response) {
-        http.response_json(res, fmt.tprintf(`{{"echo":%s}}`, string(req.body)))
+    // Dynamic echo endpoint
+    http.post(&server.router, "/echo", proc(req: ^http.Request, res: ^http.Response) {
+        http.response_json(res, fmt.tprintf(`{{"received":%s}}`, string(req.body)))
     })
 
-    // Start server
-    http.server_listen_and_serve(&server, "0.0.0.0", port)
+    fmt.println("Starting HTTP server on 0.0.0.0:8080 ...")
+    http.server_listen_and_serve(&server, "0.0.0.0", 8080)
 }
 ```
 
 ---
 
-## 🛡️ Monorepo & Sovereignty Compliance
-- **Go Scripts Only**: All CLI tooling and test harnesses are written strictly in **Go** (zero Python).
-- **Zero-Telemetry**: No third-party analytics, tracking SDKs, or external cloud telemetry.
-- **Pure Self-Contained Odin**: Zero C library dependencies; compiles directly via Odin's LLVM Wasm target.
+## ⚙️ Environment Variables
+
+- **`WASIX_RUNNER`**: Command used by `odin-wasix run` to execute the WebAssembly binary (defaults to `wasmer run --net`). For example, to use a custom runner:
+  ```bash
+  export WASIX_RUNNER="wasmer run --net --enable-threads"
+  ```
+- **`ODIN_WASIX_PATH`**: Explicit path to the `odin-wasix` root directory containing `pkg/wasix`. When set, `odin-wasix` uses this path regardless of current working directory.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).

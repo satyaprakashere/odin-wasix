@@ -1,5 +1,0 @@
----
-name: odin-webserver
-package: .
-capabilities:
-  insecure_allow_all_network: true

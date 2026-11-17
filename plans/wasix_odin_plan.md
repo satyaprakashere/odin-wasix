@@ -8,12 +8,9 @@
 - **Process & Subprocess Control** (`proc_fork`, `proc_exec`, `proc_spawn`, `proc_wait`, `proc_id`, `pipe`)
 - **System Environment Enhancements** (`chdir`, `getcwd`, `tty_get`, `tty_set`, `epoll`)
 
-While C/C++ (via `wasix-libc`) and Rust (via `cargo-wasix` and standard library patches) have first-class WASIX support, **Odin** currently treats all WASI targets as strictly Preview 1:
-- `core:net` returns `.Network_Unreachable` for all socket procedures.
-- `core:thread` panics with `unimplemented("core:thread procedure not supported on target")`.
-- `core:os` stubs out process spawning, process inspection, and directory switching.
+While C/C++ (via `wasixcc`) and Rust (via `cargo-wasix`) have had dedicated compiler drivers for WASIX, Odin lacked an integrated WASIX toolchain.
 
-Our mission is to build **`odin-wasix`**: a complete, zero-dependency, sovereign integration layer providing full WASIX capabilities to Odin programs.
+**`odin-wasix`** fills this gap as a general-purpose WASIX compiler driver and runtime SDK for Odin (equivalent to `wasixcc` for C/C++). It wraps the Odin compiler, injects the `-target:wasi_wasm32` flag and the WASIX package collection, and provides idiomatic networking and system libraries with zero external dependencies.
 
 ---
 
@@ -21,7 +18,7 @@ Our mission is to build **`odin-wasix`**: a complete, zero-dependency, sovereign
 
 Because Odin's WebAssembly backend emits standard WASM object files and invokes LLVM's `wasm-ld` with `--allow-undefined`, Odin can link against any foreign ABI at compile time without requiring compiler-level C ABI shims.
 
-We verified this on the active system:
+We verified this directly:
 ```odin
 foreign import wasix "wasix_32v1"
 
@@ -43,27 +40,25 @@ flowchart TD
         AppCode["User Code (Odin)"]
     end
 
-    subgraph OdinWasixLib["odin-wasix Package Collection"]
-        SysWasix["sys:wasix (wasix_32v1 Syscalls & Types)"]
-        NetWasix["wasix:net (Sockets, TCP/UDP, DNS)"]
-        ThreadWasix["wasix:thread (thread_spawn, Worker Pools)"]
-        SyncWasix["wasix:sync (futex_wait/wake, Mutexes)"]
-        OSWasix["wasix:os (Pipes, Subprocesses, CWD)"]
+    subgraph Tooling["Compiler Driver (odin-wasix)"]
+        BashDriver["odin-wasix (Executable Script)"]
+        OdinDriver["cmd/odin-wasix (Native Odin CLI)"]
     end
 
-    subgraph Tooling["Sovereign Tooling (Go)"]
-        CLI["odin-wasix CLI Runner (Go)"]
-        Gen["witx-to-odin Generator (Go)"]
+    subgraph OdinWasixLib["odin-wasix Package Collection (-collection:wasix=...)"]
+        SysWasix["wasix:sys (wasix_32v1 Syscalls & Types)"]
+        NetWasix["wasix:net (Sockets, TCP/UDP, Endpoints)"]
+        HTTPWasix["wasix:http (HTTP 1.1 Engine & Router)"]
     end
 
     subgraph Runtime["Wasm / WASIX Runtime"]
-        Wasmer["Wasmer Edge / Runtime 7.x"]
+        Wasmer["Wasmer / Wasmtime / Any WASIX Runtime"]
         WasixABI["wasix_32v1 / wasi_snapshot_preview1"]
     end
 
+    Tooling --> OdinApp
     AppCode --> OdinWasixLib
-    CLI --> AppCode
-    AppCode -- "odin build -target:wasi_wasm32" --> Runtime
+    Tooling -- "odin build -target:wasi_wasm32" --> Runtime
     Runtime --> WasixABI
 ```
 
@@ -71,54 +66,26 @@ flowchart TD
 
 ## 4. Multi-Phase Implementation Roadmap
 
-### Phase 1: Complete WASIX System Call & ABI Specification (`sys/wasix`)
-- **Goal**: Provide 100% complete, strongly-typed Odin bindings for all WASIX Preview 1 extensions under module namespace `"wasix_32v1"` (and optional `"wasix_64v1"`).
+### Phase 1: Complete WASIX System Call & ABI Specification (`pkg/wasix/sys`) - [COMPLETE]
 - **Deliverables**:
-  - `types.odin`: Definition of all WASIX types (`addr_port_t`, `ip_addr_t`, `sock_type_t`, `sock_proto_t`, `fdflags_t`, `errno_t`, `futex_t`, `tid_t`, `pid_t`, etc.).
-  - `wasix_api.odin`: Foreign declarations matching the official `wasix-witx` specification.
-  - Automatic validation generator written in **Go** (`generator/gen_bindings.go`) that parses `wasix-witx` definitions and maintains parity with upstream `wasix.org`.
+  - `types.odin`: Definition of all WASIX types (`Addr_Port`, `Addr_Ip4_Port`, `Addr_Ip6_Port`, `Sock_Type`, `Sock_Proto`, `Address_Family`, `Sock_Option`, `pid_t`, `tid_t`, signals).
+  - `api.odin`: Foreign declarations matching the official `wasix-witx` 32-bit specification (`sock_open`, `sock_bind`, `sock_listen`, `sock_accept_v2`, `sock_connect`, `proc_id`, `thread_parallelism`, `chdir`, `getcwd`, `fd_pipe`).
 
-### Phase 2: WASIX Networking Subsystem (`net/`)
-- **Goal**: Full BSD-compatible networking in Odin running on WASIX.
+### Phase 2: WASIX Networking Subsystem (`pkg/wasix/net`) - [COMPLETE]
 - **Deliverables**:
-  - TCP client and server (`dial_tcp`, `listen_tcp`, `accept_tcp`).
-  - UDP sockets (`send_udp`, `recv_udp`).
-  - Socket option configuration (timeouts, reuse address, keepalive).
-  - DNS resolution using WASIX `resolve`.
-  - HTTP 1.1 minimal server and client demonstration.
+  - `endpoint.odin`: `IP4_Address`, `IP6_Address`, `Endpoint`, string formatting, and parsing.
+  - `tcp.odin`: Idiomatic `TCP_Listener`, `TCP_Conn`, `listen_tcp`, `listen_tcp_str`, `accept_tcp`, `dial_tcp`, socket reading, writing, and closing.
 
-### Phase 3: WASIX Threading & Concurrency Subsystem (`thread/`, `sync/`)
-- **Goal**: Preemptive and cooperative multithreading using WASIX primitives.
+### Phase 3: High-Performance HTTP Engine (`pkg/wasix/http`) - [COMPLETE]
 - **Deliverables**:
-  - `thread_spawn`: Spawning worker threads with stack allocation.
-  - Futex-based synchronization: Fast user-space mutexes, semaphores, and condition variables (`futex_wait`, `futex_wake`, `futex_wake_all`).
-  - Thread pool and parallel task execution runner.
+  - `types.odin`: `Request`, `Response`, `Method`, `Status`, `Header`, JSON/HTML responders.
+  - `parser.odin`: Fast zero-allocation HTTP request line and header parser.
+  - `router.odin`: Route dispatcher for exact paths, methods (GET, POST, HEAD, PUT, DELETE), and static file directory serving with MIME detection.
+  - `server.odin`: Connection handling loop, temporary arena allocator per connection, and response delivery.
 
-### Phase 4: WASIX Process, Pipe & OS Subsystem (`os/`)
-- **Goal**: Subprocess spawning and system environment control.
+### Phase 4: General Compiler Driver & Zero-Dependency CLI (`odin-wasix`) - [COMPLETE]
 - **Deliverables**:
-  - Current directory manipulation: `chdir`, `getcwd`.
-  - Piping and IPC: `fd_pipe`, `fd_dup`.
-  - Subprocess spawning and status inspection: `proc_spawn`, `proc_wait`, `proc_signal`.
-
-### Phase 5: Developer CLI & Workflow Runner (`cmd/odin-wasix`)
-- **Goal**: Zero-friction developer CLI tool (written in Go) mirroring `cargo-wasix`.
-- **Deliverables**:
-  - `odin-wasix build`: Wraps `odin build` with target `-target:wasi_wasm32`, appropriate `-target-features:+atomics,+bulk-memory` (when threading is active), and auto-injected package collections.
-  - `odin-wasix run`: Builds and immediately invokes `wasmer run --net <wasm_file>`.
-  - `odin-wasix test`: Runs all unit and integration test suites.
-
-### Phase 6: Documentation, README, and Upstream Integration Proposal
-- **Goal**: Complete project documentation and upstream proposal.
-- **Deliverables**:
-  - Full `README.md` with usage instructions, architecture details, and sample code.
-  - A comprehensive patch / RFC document detailing how this layer can be upstreamed into Odin's `core:sys/wasm/wasix`, `core:net`, and `core:thread`.
-
----
-
-## 5. Invariants & Guardrails Compliance
-
-1. **Go Scripts Only**: All build automation, codegen scripts, and CLI tooling will be implemented strictly in **Go** (zero Python).
-2. **README for the Project**: Full, exhaustive `README.md` covering architecture, installation, API references, and benchmarks.
-3. **Atomic Git Commits**: Commits created following Conventional Commits (`feat:`, `chore:`, `docs:`) upon completion.
-4. **Zero-Telemetry & Sovereignty**: All code executes 100% locally with Wasmer runtime and local test harnesses.
+  - `odin-wasix`: Standalone executable Bash compiler driver script mimicking `wasixcc`: `build`, `run`, `check`, `new`, `test`, `version`, `help`.
+  - `cmd/odin-wasix/main.odin`: Native Odin implementation of the CLI driver.
+  - `install.sh`: One-liner curl installer for global CLI and package collection installation.
+  - Elimination of all Go dependencies from the public repository.
