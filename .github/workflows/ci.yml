@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test:
+    name: Build & Integration Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install Wasmer
+        run: |
+          curl https://get.wasmer.io -sSfL | sh
+          echo "$HOME/.wasmer/bin" >> $GITHUB_PATH
+
+      - name: Install Odin (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y clang llvm
+          git clone https://github.com/odin-lang/Odin.git $HOME/odin
+          cd $HOME/odin
+          make release
+          echo "$HOME/odin" >> $GITHUB_PATH
+
+      - name: Install Odin (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install odin
+
+      - name: Verify Environment
+        run: |
+          odin version
+          wasmer --version
+          go version
+
+      - name: Run odin-wasix Integration Test Suite
+        run: |
+          go run cmd/odin-wasix/main.go test

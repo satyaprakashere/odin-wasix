@@ -5,8 +5,8 @@ import "core:os"
 import "core:strconv"
 import "core:time"
 
-import "../../pkg/wasix/http"
-import "../../pkg/wasix/sys"
+import "wasix:http"
+import "wasix:sys"
 
 start_time: time.Time
 
