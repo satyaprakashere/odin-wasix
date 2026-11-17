@@ -73,36 +73,47 @@ foreign wasix {
 
 ---
 
-## 🚀 Quickstart
+## 🚀 Quickstart: As Easy as Rust WASIX (or Easier!)
 
-### Prerequisites
-- [Odin Compiler](https://odin-lang.org/) (dev-2024 or newer)
-- [Wasmer Runtime](https://wasmer.io/) (`>= 7.0`)
-- [Go](https://go.dev/) (`>= 1.20`, for running the CLI tool)
-
-### 1. Build the Web Server
-Compile the example server to an optimized WASIX WebAssembly binary:
+### Installation
+Install the `odin-wasix` CLI tool directly with Go:
 ```bash
-go run cmd/odin-wasix/main.go build
+go install github.com/satyaprakashere/odin-wasix/cmd/odin-wasix@latest
 ```
-*Output: `bin/server.wasm` (~281 KB)*
+*(Or build locally from this repo: `go build -o odin-wasix cmd/odin-wasix/*.go`)*
+
+### 1. Scaffold a New Project
+Create a complete, ready-to-deploy Odin WASIX web application in one second:
+```bash
+odin-wasix new my-app
+cd my-app
+```
+
+This generates:
+- `main.odin` (HTTP 1.1 server, REST endpoints, WASIX diagnostics)
+- `public/` (frontend HTML/CSS responsive dashboard)
+- `wasmer.toml` & `app.yaml` (Wasmer Edge deployment descriptors)
 
 ### 2. Run Locally in Wasmer
-Run the server with full network and volume mapping:
+Compile and launch your server locally:
 ```bash
-go run cmd/odin-wasix/main.go run
+odin-wasix run
 ```
-Or directly with Wasmer:
-```bash
-wasmer run --net --volume examples/webserver/public:public bin/server.wasm
-```
-
 Open [http://localhost:8080](http://localhost:8080) in your browser!
 
-### 3. Run the Automated Test Suite
-Run the end-to-end integration test suite verifying health, system diagnostics, JSON echoing, and static asset streaming:
+### 3. Deploy Directly to Wasmer Edge (`wasmer.app`)
+Deploy your application globally to Wasmer Edge with a single command:
 ```bash
-go run cmd/odin-wasix/main.go test
+odin-wasix deploy
+```
+
+---
+
+## 🧪 Run Automated Integration Tests
+
+Execute the full end-to-end test suite verifying health checks, WASIX kernel diagnostics, JSON echoing, and static asset streaming:
+```bash
+odin-wasix test
 ```
 
 Sample output:
@@ -110,10 +121,10 @@ Sample output:
 ==================================================
 🚀 Running Odin WASIX Web Server Integration Tests
 ==================================================
-[BUILD SUCCESS] bin/server.wasm (281 KB) compiled in 2.09s
+[BUILD SUCCESS] bin/server.wasm (281 KB) compiled in 1.96s
 ✓ Server is ready and accepting connections!
 
-✓ PASS [GET /api/v1/health] Status: 200 OK | Body: {"status":"healthy","uptime_seconds":0.064}
+✓ PASS [GET /api/v1/health] Status: 200 OK | Body: {"status":"healthy","uptime_seconds":0.095}
 ✓ PASS [GET /api/v1/system] Status: 200 OK | Body: {"runtime":"wasix_32v1","language":"odin","pid":1,"hardware_threads":10,"memory_model":"wasm32"}
 ✓ PASS [POST /api/v1/echo] Status: 200 OK | Body: {"echo":{"active":true,"code":2026,"message":"Testing Odin WASIX Server"}}
 ✓ PASS [GET /] Status: 200 OK | Rendered HTML length: 2540 bytes
@@ -125,24 +136,9 @@ Test Results: 5/5 PASSED (100% Success Rate)
 
 ---
 
-## 🌐 Deploying to Wasmer Edge (`wasmer.app`)
+## 📖 Code Example: Clean WASIX Package Imports
 
-The repository includes pre-configured `wasmer.toml` and `app.yaml` manifests.
-
-Deploy to Wasmer Edge with a single command:
-```bash
-go run cmd/odin-wasix/main.go deploy
-```
-Or directly using the Wasmer CLI:
-```bash
-wasmer deploy
-```
-
-Wasmer Edge will build your package, configure the edge routing pipeline, and issue a global HTTPS URL (e.g., `https://my-app.wasmer.app`).
-
----
-
-## 📖 Code Example: Creating an Odin WASIX Server
+Thanks to automatic collection resolution, you import WASIX packages cleanly:
 
 ```odin
 package main
@@ -151,8 +147,8 @@ import "core:fmt"
 import "core:os"
 import "core:strconv"
 
-import "../../pkg/wasix/http"
-import "../../pkg/wasix/sys"
+import "wasix:http"
+import "wasix:sys"
 
 main :: proc() {
     port: u16 = 8080
