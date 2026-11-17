@@ -2,7 +2,7 @@
 
 [![Target](https://img.shields.io/badge/target-wasix_32v1-blue.svg)](https://wasix.org/)
 [![Runtime](https://img.shields.io/badge/runtime-Wasmer_/_WASIX-orange.svg)](https://wasmer.io/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](LICENSE)
 [![Zero-Dependency](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)]()
 
 **`odin-wasix`** is the general **WASIX** ([wasix.org](https://wasix.org/)) build toolchain and compiler driver for the **Odin programming language**.
@@ -264,4 +264,4 @@ main :: proc() {
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [Mozilla Public License Version 2.0](LICENSE) (MPL 2.0).

@@ -2,7 +2,7 @@
 name = "odin-wasix-server"
 version = "0.1.0"
 description = "High-performance Odin Webserver running on Wasmer Edge (WASIX)"
-license = "MIT"
+license = "MPL-2.0"
 
 [[module]]
 name = "server"
