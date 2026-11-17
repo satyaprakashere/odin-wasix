@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odin WASIX Web Server</title>
+  <link rel="stylesheet" href="/public/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">Wasmer Edge Native</div>
+      <h1>⚡ Odin WASIX Web Server</h1>
+      <p class="subtitle">Replacing heavy Rust Axum/Tokio web servers with high-performance, instant cold-start Odin binaries.</p>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Live Diagnostics</h3>
+        <p>Querying the WASIX kernel directly from Odin:</p>
+        <button id="btnDiag" class="btn">Fetch WASIX Metrics</button>
+        <pre id="diagOutput">Click above to query /api/v1/system</pre>
+      </div>
+
+      <div class="card">
+        <h3>Health Probe</h3>
+        <p>Real-time uptime and server status check:</p>
+        <button id="btnHealth" class="btn">Check Health</button>
+        <pre id="healthOutput">Click above to query /api/v1/health</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Interactive API Tester (POST /api/v1/echo)</h3>
+      <textarea id="echoInput" rows="3">{"message": "Hello from browser via Odin WASIX!"}</textarea>
+      <br>
+      <button id="btnEcho" class="btn">Send POST Request</button>
+      <pre id="echoOutput">Response will appear here...</pre>
+    </div>
+
+    <footer>
+      <p>Compiled with <strong>Odin (LLVM Wasm Backend)</strong> &bull; Running under <strong>Wasmer WASIX</strong></p>
+    </footer>
+  </div>
+
+  <script>
+    document.getElementById('btnDiag').onclick = async () => {
+      const res = await fetch('/api/v1/system');
+      const data = await res.json();
+      document.getElementById('diagOutput').textContent = JSON.stringify(data, null, 2);
+    };
+
+    document.getElementById('btnHealth').onclick = async () => {
+      const res = await fetch('/api/v1/health');
+      const data = await res.json();
+      document.getElementById('healthOutput').textContent = JSON.stringify(data, null, 2);
+    };
+
+    document.getElementById('btnEcho').onclick = async () => {
+      const payload = document.getElementById('echoInput').value;
+      const res = await fetch('/api/v1/echo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+      });
+      const data = await res.json();
+      document.getElementById('echoOutput').textContent = JSON.stringify(data, null, 2);
+    };
+  </script>
+</body>
+</html>
