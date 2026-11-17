@@ -22,6 +22,8 @@ func main() {
 
 	command := os.Args[1]
 	switch command {
+	case "new":
+		runNew(os.Args[2:])
 	case "build":
 		runBuild(os.Args[2:])
 	case "run", "dev":
@@ -30,6 +32,8 @@ func main() {
 		runTest(os.Args[2:])
 	case "deploy":
 		runDeploy(os.Args[2:])
+	case "version":
+		fmt.Println("odin-wasix version 0.1.0 (WASIX 32-bit v1)")
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -40,26 +44,118 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("⚡ odin-wasix: Sovereign Tooling for Odin on WASIX & Wasmer Edge")
+	fmt.Println("⚡ odin-wasix: First-class Tooling for Odin on WASIX & Wasmer Edge")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  go run cmd/odin-wasix/main.go <command> [flags]")
+	fmt.Println("  odin-wasix <command> [flags]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  build    Compile Odin source to WASIX WebAssembly binary (.wasm)")
-	fmt.Println("  run      Build and run local WASIX server in Wasmer")
-	fmt.Println("  dev      Alias for run")
-	fmt.Println("  test     Execute automated end-to-end HTTP integration test suite")
-	fmt.Println("  deploy   Deploy application to Wasmer Edge (wasmer.app)")
-	fmt.Println("  help     Show this help message")
+	fmt.Println("  new <name>   Scaffold a complete, production-ready Odin WASIX project")
+	fmt.Println("  build        Compile Odin source to an optimized WASIX binary (.wasm)")
+	fmt.Println("  run / dev    Build and run application in Wasmer with full networking")
+	fmt.Println("  test         Execute automated end-to-end integration test suite")
+	fmt.Println("  deploy       Deploy application directly to Wasmer Edge (wasmer.app)")
+	fmt.Println("  version      Print tool version")
+	fmt.Println("  help         Display this help message")
+}
+
+func findWasixCollection() string {
+	candidates := []string{
+		"pkg/wasix",
+		"../pkg/wasix",
+		"../../pkg/wasix",
+	}
+
+	if envPath := os.Getenv("ODIN_WASIX_PATH"); envPath != "" {
+		candidates = append([]string{filepath.Join(envPath, "pkg/wasix")}, candidates...)
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		candidates = append(candidates, filepath.Join(homeDir, ".odin-wasix", "pkg", "wasix"))
+	}
+
+	for _, c := range candidates {
+		abs, err := filepath.Abs(c)
+		if err == nil {
+			if fi, err := os.Stat(abs); err == nil && fi.IsDir() {
+				return abs
+			}
+		}
+	}
+
+	return ""
+}
+
+func runNew(args []string) {
+	if len(args) < 1 {
+		fmt.Println("Usage: odin-wasix new <project_name>")
+		os.Exit(1)
+	}
+
+	name := args[0]
+	if _, err := os.Stat(name); err == nil {
+		fmt.Printf("Error: directory '%s' already exists.\n", name)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✨ Scaffolding new Odin WASIX project '%s' ...\n", name)
+
+	// Create directories
+	dirs := []string{
+		name,
+		filepath.Join(name, "public"),
+		filepath.Join(name, "bin"),
+	}
+	for _, d := range dirs {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			fmt.Printf("Failed to create directory %s: %v\n", d, err)
+			os.Exit(1)
+		}
+	}
+
+	// Write files
+	files := map[string]string{
+		filepath.Join(name, "main.odin"):          templateMainOdin,
+		filepath.Join(name, "public", "index.html"): templateIndexHTML,
+		filepath.Join(name, "public", "style.css"):  templateStyleCSS,
+		filepath.Join(name, "wasmer.toml"):        fmt.Sprintf(templateWasmerToml, name),
+		filepath.Join(name, "app.yaml"):           fmt.Sprintf(templateAppYaml, name),
+		filepath.Join(name, ".gitignore"):         templateGitignore,
+		filepath.Join(name, "README.md"):          fmt.Sprintf("# %s\n\nHigh-performance Odin Webserver running on Wasmer Edge.\n\n### Running Locally\n```bash\nodin-wasix run\n```\n", name),
+	}
+
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			fmt.Printf("Failed to write file %s: %v\n", path, err)
+			os.Exit(1)
+		}
+	}
+
+	fmt.Println("✓ Project created successfully!")
+	fmt.Println()
+	fmt.Printf("Next steps:\n")
+	fmt.Printf("  cd %s\n", name)
+	fmt.Printf("  odin-wasix run\n")
 }
 
 func runBuild(args []string) {
 	fs := flag.NewFlagSet("build", flag.ExitOnError)
-	src := fs.String("src", "examples/webserver", "Path to Odin package or file")
+	src := fs.String("src", "", "Path to Odin package or file (defaults to current dir or examples/webserver)")
 	out := fs.String("out", "bin/server.wasm", "Output path for .wasm binary")
 	opt := fs.String("opt", "speed", "Optimization level: none, minimal, speed, size")
 	fs.Parse(args)
+
+	srcPath := *src
+	if srcPath == "" {
+		if _, err := os.Stat("main.odin"); err == nil {
+			srcPath = "."
+		} else if _, err := os.Stat("examples/webserver"); err == nil {
+			srcPath = "examples/webserver"
+		} else {
+			srcPath = "."
+		}
+	}
 
 	outDir := filepath.Dir(*out)
 	if err := os.MkdirAll(outDir, 0755); err != nil {
@@ -67,13 +163,28 @@ func runBuild(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("[BUILD] Compiling %s to %s (-target:wasi_wasm32 -o:%s) ...\n", *src, *out, *opt)
+	collectionPath := findWasixCollection()
+	var buildArgs []string
 
-	cmd := exec.Command("odin", "build", *src,
+	if srcPath == "." && fileExists("main.odin") {
+		buildArgs = append(buildArgs, "build", ".")
+	} else {
+		buildArgs = append(buildArgs, "build", srcPath)
+	}
+
+	buildArgs = append(buildArgs,
 		"-target:wasi_wasm32",
 		fmt.Sprintf("-o:%s", *opt),
 		fmt.Sprintf("-out:%s", *out),
 	)
+
+	if collectionPath != "" {
+		buildArgs = append(buildArgs, fmt.Sprintf("-collection:wasix=%s", collectionPath))
+	}
+
+	fmt.Printf("[BUILD] Compiling %s to %s (-target:wasi_wasm32 -o:%s) ...\n", srcPath, *out, *opt)
+
+	cmd := exec.Command("odin", buildArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -86,15 +197,22 @@ func runBuild(args []string) {
 
 	fi, err := os.Stat(*out)
 	if err != nil {
-		fmt.Printf("[BUILD] Compiled in %v (could not stat output)\n", elapsed)
+		fmt.Printf("[BUILD] Compiled in %v\n", elapsed)
 		return
 	}
 
 	fmt.Printf("[BUILD SUCCESS] %s (%d KB) compiled in %v\n", *out, fi.Size()/1024, elapsed)
 }
 
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
+
 func runDev(args []string) {
-	// First ensure fresh build
 	runBuild(args)
 
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
@@ -102,13 +220,21 @@ func runDev(args []string) {
 	port := fs.String("port", "8080", "Port to expose")
 	fs.Parse(args)
 
-	fmt.Printf("[RUN] Launching Wasmer WASIX on port %s ...\n", *port)
+	fmt.Printf("[RUN] Launching Wasmer WASIX on http://localhost:%s ...\n", *port)
 
-	cmd := exec.Command("wasmer", "run", "--net",
-		"--env", fmt.Sprintf("PORT=%s", *port),
-		"--volume", "examples/webserver/public:public",
-		*wasm,
-	)
+	var runArgs []string
+	runArgs = append(runArgs, "run", "--net", "--env", fmt.Sprintf("PORT=%s", *port))
+
+	// Check if public directory exists
+	if _, err := os.Stat("public"); err == nil {
+		runArgs = append(runArgs, "--volume", "public:public")
+	} else if _, err := os.Stat("examples/webserver/public"); err == nil {
+		runArgs = append(runArgs, "--volume", "examples/webserver/public:public")
+	}
+
+	runArgs = append(runArgs, *wasm)
+
+	cmd := exec.Command("wasmer", runArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -122,10 +248,8 @@ func runTest(args []string) {
 	fmt.Println("🚀 Running Odin WASIX Web Server Integration Tests")
 	fmt.Println("==================================================")
 
-	// 1. Build server
 	runBuild([]string{"-src", "examples/webserver", "-out", "bin/server.wasm", "-opt", "speed"})
 
-	// 2. Start server in background
 	port := "8095"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -145,7 +269,6 @@ func runTest(args []string) {
 		os.Exit(1)
 	}
 
-	// Wait up to 5 seconds for server to be responsive
 	baseURL := fmt.Sprintf("http://127.0.0.1:%s", port)
 	serverReady := false
 	for i := 0; i < 25; i++ {
@@ -251,7 +374,6 @@ func runTest(args []string) {
 		}
 	}
 
-	// Terminate server
 	cancel()
 	cmd.Wait()
 
@@ -261,7 +383,6 @@ func runTest(args []string) {
 }
 
 func runDeploy(args []string) {
-	// Rebuild optimized binary
 	runBuild([]string{"-src", "examples/webserver", "-out", "bin/server.wasm", "-opt", "speed"})
 
 	fmt.Println("[DEPLOY] Invoking 'wasmer deploy' to Wasmer Edge (wasmer.app) ...")
